@@ -37,34 +37,32 @@ class FloatingViewWrapper: UIViewController {
         // 투명 배경 설정
         hostingController.view.backgroundColor = .clear
         
+        // 터치 통과를 위한 커스텀 뷰로 교체
+        let passThroughView = PassThroughView(frame: view.bounds)
+        passThroughView.backgroundColor = .clear
+        
         // 자식 뷰컨트롤러로 추가
         addChild(hostingController)
-        view.addSubview(hostingController.view)
+        passThroughView.addSubview(hostingController.view)
+        view.addSubview(passThroughView)
         hostingController.didMove(toParent: self)
         
-        // 전체 화면에 맞춤
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        // PassThroughView 제약 설정
+        passThroughView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            passThroughView.topAnchor.constraint(equalTo: view.topAnchor),
+            passThroughView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            passThroughView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            passThroughView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         
-        // 터치 통과를 위한 커스텀 뷰 설정
-        hostingController.view = PassThroughView(frame: view.bounds)
-        hostingController.view.backgroundColor = .clear
-        
-        // SwiftUI 뷰 다시 설정
-        let swiftUIView = UIHostingController(rootView: floatingViewContainer)
-        swiftUIView.view.backgroundColor = .clear
-        hostingController.view.addSubview(swiftUIView.view)
-        swiftUIView.view.translatesAutoresizingMaskIntoConstraints = false
+        // HostingController 뷰 제약 설정
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            swiftUIView.view.topAnchor.constraint(equalTo: hostingController.view.topAnchor),
-            swiftUIView.view.leadingAnchor.constraint(equalTo: hostingController.view.leadingAnchor),
-            swiftUIView.view.trailingAnchor.constraint(equalTo: hostingController.view.trailingAnchor),
-            swiftUIView.view.bottomAnchor.constraint(equalTo: hostingController.view.bottomAnchor)
+            hostingController.view.topAnchor.constraint(equalTo: passThroughView.topAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: passThroughView.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: passThroughView.trailingAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: passThroughView.bottomAnchor)
         ])
     }
 }
@@ -74,26 +72,36 @@ class PassThroughView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let hitView = super.hitTest(point, with: event)
         
-        // 자신이 히트되면 nil을 반환하여 터치를 통과시킴
-        if hitView == self {
-            return nil
+        // SwiftUI 뷰(hostingController.view)가 히트된 경우 그대로 반환
+        if let hitView = hitView, hitView != self {
+            return hitView
         }
         
-        return hitView
+        // 자신(PassThroughView)이 히트되면 nil을 반환하여 터치를 통과시킴
+        return nil
+    }
+    
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        // 자식 뷰들을 체크
+        for subview in subviews.reversed() {
+            let convertedPoint = convert(point, to: subview)
+            if subview.point(inside: convertedPoint, with: event) {
+                return true
+            }
+        }
+        
+        // 자신 영역에는 포인트가 없는 것으로 처리
+        return false
     }
 }
 
 // MARK: - SwiftUI 컨테이너
 struct FloatingViewContainer: View {
     var body: some View {
-        // 투명한 배경에 플로팅뷰만 배치
-        Color.clear
-            .ignoresSafeArea()
-            .overlay(
-                FloatingView()
-                    .allowsHitTesting(true) // 플로팅뷰는 터치 허용
-            )
-            .allowsHitTesting(false) // 배경은 터치 차단
+        // 플로팅뷰만 배치하고 배경은 완전히 제거
+        FloatingView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .allowsHitTesting(true)
     }
 }
 
